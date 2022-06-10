@@ -3,15 +3,16 @@ import { buildASTSchema, parse } from "graphql";
 import { addResolversToSchema } from "@graphql-tools/schema";
 
 const peopleData = [
-  { id: 1, name: "John Smith" },
-  { id: 2, name: "Sara Smith" },
-  { id: 3, name: "Budd Deey" },
+  { id: 1, name: "John Smith", extraField: 'X' },
+  { id: 2, name: "Sara Smith", extraField: 'Y' },
+  { id: 3, name: "Budd Deey", extraField: 'Z' },
 ];
 
 const schemaAST = parse(`#graphql
   type Person {
     id: ID!
     name: String!
+    extraField: String!
   }
 
   type Query {
@@ -55,7 +56,10 @@ function delay(wait) {
 const link = new ApolloLink((operation) => {
   return new Observable(async (observer) => {
     const { query, operationName, variables } = operation;
-    await delay(300);
+    if (operationName === 'AllPeople2') {
+     observer.error(new Error('Query 2 example failure'));
+    }
+    await delay(2000);
     try {
       const result = await graphql({
         schema,
@@ -72,7 +76,7 @@ const link = new ApolloLink((operation) => {
 });
 
 /*** APP ***/
-import React, { useState } from "react";
+import React from "react";
 import { createRoot } from "react-dom/client";
 import {
   ApolloClient,
@@ -80,7 +84,6 @@ import {
   InMemoryCache,
   gql,
   useQuery,
-  useMutation,
 } from "@apollo/client";
 import "./index.css";
 
@@ -88,14 +91,14 @@ const ALL_PEOPLE = gql`
   query AllPeople {
     people {
       id
-      name
+      extraField
     }
   }
 `;
 
-const ADD_PERSON = gql`
-  mutation AddPerson($name: String) {
-    addPerson(name: $name) {
+const ALL_PEOPLE2 = gql`
+  query AllPeople2 {
+    people {
       id
       name
     }
@@ -103,22 +106,8 @@ const ADD_PERSON = gql`
 `;
 
 function App() {
-  const [name, setName] = useState("");
-  const { loading, data } = useQuery(ALL_PEOPLE);
-
-  const [addPerson] = useMutation(ADD_PERSON, {
-    update: (cache, { data: { addPerson: addPersonData } }) => {
-      const peopleResult = cache.readQuery({ query: ALL_PEOPLE });
-
-      cache.writeQuery({
-        query: ALL_PEOPLE,
-        data: {
-          ...peopleResult,
-          people: [...peopleResult.people, addPersonData],
-        },
-      });
-    },
-  });
+  const { loading: loading1, data: data1, error: error1 } = useQuery(ALL_PEOPLE);
+  const { loading: loading2, data: data2, error: error2 } = useQuery(ALL_PEOPLE2);
 
   return (
     <main>
@@ -126,29 +115,24 @@ function App() {
       <p>
         This application can be used to demonstrate an error in Apollo Client.
       </p>
-      <div className="add-person">
-        <label htmlFor="name">Name</label>
-        <input
-          type="text"
-          name="name"
-          value={name}
-          onChange={(evt) => setName(evt.target.value)}
-        />
-        <button
-          onClick={() => {
-            addPerson({ variables: { name } });
-            setName("");
-          }}
-        >
-          Add person
-        </button>
-      </div>
-      <h2>Names</h2>
-      {loading ? (
+      <h2>Query 1 Data:</h2>
+      {error1 && `${error1}`}
+      {loading1 ? (
         <p>Loading…</p>
       ) : (
         <ul>
-          {data?.people.map((person) => (
+          {data1?.people.map((person) => (
+            <li key={person.id}>{person.extraField}</li>
+          ))}
+        </ul>
+      )}
+      <h2>Query 2 Data:</h2>
+      {error2 && `Error: ${error2}`}
+      {loading2 ? (
+        <p>Loading…</p>
+      ) : (
+        <ul>
+          {data2?.people.map((person) => (
             <li key={person.id}>{person.name}</li>
           ))}
         </ul>
@@ -160,6 +144,23 @@ function App() {
 const client = new ApolloClient({
   cache: new InMemoryCache(),
   link,
+  defaultOptions: {
+    watchQuery: {
+      fetchPolicy: 'cache-and-network',
+      nextFetchPolicy: 'cache-first',
+    }
+  }
+});
+
+client.writeQuery({
+  query: ALL_PEOPLE2,
+  data: {
+    people: [
+      { id: 1, name: "JS", __typename: 'Person' },
+      { id: 2, name: "SS", __typename: 'Person' },
+      { id: 3, name: "BD", __typename: 'Person' },
+    ],
+  },
 });
 
 const container = document.getElementById("root");
