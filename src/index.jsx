@@ -1,5 +1,5 @@
 /*** APP ***/
-import React, { useState } from "react";
+import React, { StrictMode, useState } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { createRoot } from "react-dom/client";
 import {
@@ -34,9 +34,27 @@ const ADD_PERSON = gql`
   }
 `;
 
+const QUERY_PEOPLE_2 = gql`
+  query People2 {
+    people {
+      id
+      age
+    }
+  }
+`
+
+const PollingComponent = () => {
+  useQuery(QUERY_PEOPLE_2, { pollInterval: 1000, notifyOnNetworkStatusChange: true, skip: false, onCompleted: (data) => {
+    console.log('completed data:', data)
+  } });
+
+  return <div>Polling!</div>
+}
+
 function App() {
   const [name, setName] = useState("");
   const { loading, data } = useQuery(ALL_PEOPLE);
+  const [polling, setPolling] = useState(false);
 
   const [addPerson] = useMutation(ADD_PERSON, {
     update: (cache, { data: { addPerson: addPersonData } }) => {
@@ -82,27 +100,51 @@ function App() {
           ))}
         </ul>
       )}
+      <button onClick={() => {
+        setPolling(currentVal => !currentVal);
+      }}>
+        Toggle Polling
+      </button>
+      {polling && <PollingComponent />}
     </main>
   );
 }
 
 const client = new ApolloClient({
+  queryDeduplication: false,
   cache: new InMemoryCache(),
   link,
+  defaultOptions: {
+    watchQuery: {
+      // specify our preferred default fetch policy
+      fetchPolicy: 'cache-and-network',
+      // explanation of what "nextFetchPolicy" is: https://github.com/apollographql/apollo-client/issues/6760#issuecomment-668188727
+      // ability to specify nextFetchPolicy function in defaultOptions: https://github.com/apollographql/apollo-client/issues/6833#issuecomment-679446789
+      // istanbul ignore next - not worth the effort of testing this
+      nextFetchPolicy(lastFetchPolicy) {
+        if (lastFetchPolicy === 'cache-and-network' || lastFetchPolicy === 'network-only') {
+          return 'cache-first';
+        }
+        return lastFetchPolicy;
+      },
+    },
+  }
 });
 
 const container = document.getElementById("root");
 const root = createRoot(container);
 
 root.render(
-  <ApolloProvider client={client}>
-    <Router>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<App />} />
-          <Route path="subscriptions-wslink" element={<Subscriptions />} />
-        </Route>
-      </Routes>
-    </Router>
-  </ApolloProvider>
+  <StrictMode>
+    <ApolloProvider client={client}>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<App />} />
+            <Route path="subscriptions-wslink" element={<Subscriptions />} />
+          </Route>
+        </Routes>
+      </Router>
+    </ApolloProvider>
+  </StrictMode>
 );

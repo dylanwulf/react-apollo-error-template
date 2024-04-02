@@ -5,6 +5,7 @@ import {
   GraphQLID,
   GraphQLString,
   GraphQLList,
+  GraphQLInt,
 } from 'graphql';
 
 const PersonType = new GraphQLObjectType({
@@ -12,13 +13,14 @@ const PersonType = new GraphQLObjectType({
   fields: {
     id: { type: GraphQLID },
     name: { type: GraphQLString },
+    age: { type: GraphQLInt}
   },
 });
 
 const peopleData = [
-  { id: 1, name: 'John Smith' },
-  { id: 2, name: 'Sara Smith' },
-  { id: 3, name: 'Budd Deey' },
+  { id: 1, name: 'John Smith', age: 30 },
+  { id: 2, name: 'Sara Smith', age: 31 },
+  { id: 3, name: 'Budd Deey', age: 999 },
 ];
 
 const QueryType = new GraphQLObjectType({
